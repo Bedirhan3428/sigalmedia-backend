@@ -40,7 +40,7 @@ app.use(cors());
 // Genel limiter
 const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 400,
     message: "Çok fazla deneme yaptınız, lütfen biraz bekleyip tekrar deneyin."
 });
 app.use(generalLimiter);
@@ -48,15 +48,15 @@ app.use(generalLimiter);
 // Tweet'e özel sıkı limiter (deviceId bazlı)
 const tweetLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 saat
-    max: 5,
+    max: 7,
     keyGenerator: (req) => req.body?.deviceId || req.ip,
-    message: "Saatte en fazla 5 tweet denemesi yapılabilir."
+    message: "Saatte en fazla 7 tweet denemesi yapılabilir."
 });
 
 // Yorum'a özel limiter
 const commentLimiter = rateLimit({
     windowMs: 10 * 60 * 1000, // 10 dakika
-    max: 20,
+    max: 15,
     keyGenerator: (req) => req.body?.deviceId || req.ip,
     message: "Çok hızlı yorum yapıyorsunuz, biraz bekleyin."
 });
