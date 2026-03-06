@@ -31,6 +31,7 @@ async function deleteFromStorage(imagePath) {
 
 // ─── APP & GROQ ─────────────────────────────────────────────────────────────
 const app  = express();
+app.set('trust proxy', 1);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(express.json({ limit: '1mb' }));
