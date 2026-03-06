@@ -34,7 +34,18 @@ const app  = express();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 app.use(express.json({ limit: '1mb' }));
-app.use(cors());
+
+const corsOptions = {
+  origin: [
+    'https://sigalmedia.site', 
+    'https://www.sigalmedia.site',
+    'http://localhost:3000', // Kendi bilgisayarında test yapabilmek için
+    'http://localhost:5173'  // Vite kullanıyorsan bu portu da ekle
+  ],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // ─── RATE LİMİTERLAR ────────────────────────────────────────────────────────
 // Genel limiter
