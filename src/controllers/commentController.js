@@ -1,7 +1,8 @@
 const Comment                = require('../models/Comment');
 const { Tweet }              = require('../models/Tweet');
 const { User }               = require('../models/User');
-const { sentinelScanText }   = require('../middlewares/aegis');
+// sentinelScanText yerine sentinelScanComment'i import ediyoruz
+const { sentinelScanComment } = require('../middlewares/aegis'); 
 
 // POST /api/comment/:tweetId
 exports.createComment = async (req, res) => {
@@ -17,8 +18,8 @@ exports.createComment = async (req, res) => {
         if (!user)        return res.status(404).json({ error: "Kullanıcı bulunamadı." });
         if (!tweetExists) return res.status(404).json({ error: "Tweet bulunamadı." });
 
-        // Sentinel Scan
-        const { blocked } = await sentinelScanText(content);
+        // Sentinel Scan (Artık yorumlara özel olan fonksiyonu kullanıyor)
+        const { blocked } = await sentinelScanComment(content);
         if (blocked) return res.status(400).json({ error: "Yorumunda uygunsuz içerik tespit edildi." });
 
         const [comment] = await Promise.all([

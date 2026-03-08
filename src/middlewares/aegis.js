@@ -1,14 +1,3 @@
-/**
- * ╔══════════════════════════════════════════════════════════════╗
- * ║           AEGIS KADEMELI SAVUNMA PROTOKOLÜ                   ║
- * ║   Sigal Media — İçerik Güvenlik Kalkanı                     ║
- * ╠══════════════════════════════════════════════════════════════╣
- * ║  1. Katman → Sentinel Scan    (Sadece Kırmızı Çizgi)        ║
- * ║  2. Katman → Community Signal (5 Şikayet → Karantina)       ║
- * ║  3. Katman → Military Audit   (Derin Analiz → Suspended)    ║
- * ╚══════════════════════════════════════════════════════════════╝
- */
-
 const groq      = require('../config/groq');
 const { Tweet } = require('../models/Tweet');
 
@@ -18,8 +7,7 @@ const AUDIT_MODEL      = 'llama-3.3-70b-versatile';
 const VISION_MODEL     = 'llama-3.2-11b-vision-preview';
 
 // ════════════════════════════════════════════════════════════════════════════
-// KATMAN 1 — SENTINEL SCAN (ÇOK GEVŞETİLMİŞ)
-// Sadece 2 durumda engeller, başka HİÇBİR ŞEYDE ENGELLEME YOK.
+// KATMAN 1 — SENTINEL SCAN (TWEET)
 // ════════════════════════════════════════════════════════════════════════════
 async function sentinelScanText(text) {
     if (!text?.trim()) return { blocked: false };
@@ -27,24 +15,41 @@ async function sentinelScanText(text) {
     try {
         const res = await groq.chat.completions.create({
             model: SENTINEL_MODEL,
-            max_tokens: 10,
+            temperature: 0.0, // Sıfır tolerans, yaratıcılık kapalı, sadece kurala uyar
+            max_tokens: 5,
             messages: [
                 {
                     role: 'system',
-                    content: `Sadece 2 durumda "BLOCK" yaz, diğer HER ŞEYDE "PASS" yaz:
-1. Açık ölüm tehdidi: "seni öldüreceğim", "öldürcem", "kanını dökeceğim" gibi net cümleler
-2. Açık uyuşturucu/silah satışı: "satılık esrar", "tabanca satıyorum"
+                    content: `Sen acımasız ama adil bir yapay zeka filtresisin. YALNIZCA "BLOCK" veya "PASS" kelimelerinden birini yaz. Başka hiçbir harf veya noktalama işareti kullanma.
 
-Küfür, hakaret, argo, gençlik dili, dedikodu, eleştiri, şikayet, espri, abartı → her zaman PASS
-Sadece "BLOCK" veya "PASS" yaz.`,
+KURAL: Sadece ama SADECE aşağıdaki 2 durumda "BLOCK" yaz:
+1. AÇIK ÖLÜM VEYA FİZİKSEL ŞİDDET TEHDİDİ (Birini yaralama/öldürme beyanı)
+2. YASADIŞI MADDE/SİLAH SATIŞI
+
+BUNLAR KESİNLİKLE "PASS" ALMALIDIR:
+- Günlük normal konuşmalar (merhaba, nasılsın, günaydın)
+- Argo, hakaret(örneğin:"sen çirkinsin, sen aptalsıngibi") ama bartı ailevi ve kişisel değerlere küfr argo engelle (Lise ortamı olduğu için esnektir)
+- Okul, öğretmen, sistem eleştirileri, dedikodu veya sitemler
+- Şakalar, ironiler, troller
+
+ÖRNEKLER:
+"merhaba kanka" -> PASS
+"okulun kantini iğrenç aq" -> PASS
+"fizikçinin ben ta..." -> PASS
+"seni okul çıkışı tenhada bıçaklayacağım" -> BLOCK
+"elinde ot olan var mı satılık" -> BLOCK
+"bugün çok sıkıcıydı" -> PASS
+"oğlum sen mal mısın" -> PASS
+"kafana sıkarım senin" -> BLOCK
+"yarın matematik sınavı var of" -> PASS`
                 },
                 { role: 'user', content: text },
             ],
         });
 
         const verdict = res.choices[0].message.content.trim().toUpperCase();
-        const blocked = verdict.startsWith('BLOCK');
-        console.log(`🛡️ Sentinel → ${blocked ? '🚫 BLOCK' : '✅ PASS'}`);
+        const blocked = verdict.includes('BLOCK');
+        console.log(`🛡️ Sentinel Tweet → ${blocked ? '🚫 BLOCK' : '✅ PASS'} | Text: "${text.substring(0, 15)}..."`);
         return { blocked };
     } catch (err) {
         console.error('⚠️ Sentinel hatası (geçildi):', err.message);
@@ -52,29 +57,75 @@ Sadece "BLOCK" veya "PASS" yaz.`,
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// KATMAN 1.5 — SENTINEL SCAN (YORUM)
+// ════════════════════════════════════════════════════════════════════════════
+async function sentinelScanComment(text) {
+    if (!text?.trim()) return { blocked: false };
+
+    try {
+        const res = await groq.chat.completions.create({
+            model: SENTINEL_MODEL,
+            temperature: 0.0,
+            max_tokens: 5,
+            messages: [
+                {
+                    role: 'system',
+                    content: `Sen bir yorum denetleyicisisin. Sadece "BLOCK" veya "PASS" döndür.
+KURAL: Yalnızca açık kanlı tehdit, terör propagandası veya yasadışı satış varsa BLOCK de.
+Diğer her şeye (argo, saçmalama, spam, eleştiri) PASS de.
+
+ÖRNEKLER:
+"ilk" -> PASS
+"ne diyon la değişik" -> PASS
+"senin o ağzını yüzünü kırarım çıkışta bekle" -> BLOCK
+"+1" -> PASS
+"silah satılır DM" -> BLOCK
+"çok saçma bi post" -> PASS
+"ananı avradını..." -> PASS
+"slm" -> PASS`
+                },
+                { role: 'user', content: text },
+            ],
+        });
+
+        const verdict = res.choices[0].message.content.trim().toUpperCase();
+        const blocked = verdict.includes('BLOCK');
+        console.log(`💬 Sentinel Yorum → ${blocked ? '🚫 BLOCK' : '✅ PASS'} | Text: "${text.substring(0, 15)}..."`);
+        return { blocked };
+    } catch (err) {
+        console.error('⚠️ Sentinel Yorum hatası (geçildi):', err.message);
+        return { blocked: false };
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// KATMAN 1.5 — SENTINEL SCAN (GÖRSEL)
+// ════════════════════════════════════════════════════════════════════════════
 async function sentinelScanImage(imageUrl) {
     if (!imageUrl) return { blocked: false };
 
     try {
         const res = await groq.chat.completions.create({
             model: VISION_MODEL,
-            max_tokens: 10,
+            temperature: 0.0,
+            max_tokens: 5,
             messages: [{
                 role: 'user',
                 content: [
                     { type: 'image_url', image_url: { url: imageUrl } },
                     {
                         type: 'text',
-                        text: `Sadece "RED" veya "ONAY" yaz.
-RED: Açık çıplaklık/müstehcenlik veya ağır kan/şiddet varsa.
-ONAY: Normal fotoğraf, selfie, ekran görüntüsü, metin vb.`,
+                        text: `Sen bir görsel güvenlik filtresisin. YALNIZCA "RED" veya "ONAY" yaz. Başka hiçbir şey yazma.
+KURAL: Sadece açık çıplaklık/porno veya ağır kanlı/parçalanmış ceset görüntüsü varsa "RED" yaz.
+Normal insan fotoğrafları, yüzler, manzaralar, oyun ekran görüntüleri, capsler, internet şakaları, üzerinde yazı olan resimler KESİNLİKLE "ONAY" almalıdır.`,
                     },
                 ],
             }],
         });
 
         const answer  = res.choices[0].message.content.trim().toUpperCase();
-        const blocked = answer.startsWith('RED');
+        const blocked = answer.includes('RED');
         console.log(`🖼️ Sentinel Görsel → ${blocked ? '🚫 RED' : '✅ ONAY'}`);
         return { blocked };
     } catch (err) {
@@ -159,10 +210,10 @@ UNSAFE (bunlardan BİRİ varsa):
 - Üstü kapalı tehdit: "sonunda göreceksin", "pişman ederim seni", "hesap sorarım"
 - Kişisel zorbalık: belirli biri hedef alınarak sistematik aşağılama
 - Ağır nefret söylemi: köken/dış görünüş/cinsiyet hedefli
-- Ağır hakaret (anne/baba sövgüsü tarzı)
+- Ağır hakaret (anne/baba sövgüsü tarzı),argo, küfür
 
 SAFE (bunların hepsi):
-- Dedikodu, eleştiri, şikayet, argo, küfür (kişi hedefsiz)
+- Dedikodu, eleştiri, şikayet(kişi hedefsiz),argo(hahif küfür esnek),sitemler
 - "Bu okul berbat", "müdür saçmaladı" gibi genel sitemler
 - Hayal kırıklığı, kızgınlık ifadesi
 
