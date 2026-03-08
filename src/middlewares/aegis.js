@@ -282,6 +282,7 @@ async function modDecision(tweetId, decision, modDeviceId, reason = '') {
 module.exports = {
     sentinelScanText,
     sentinelScanImage,
+    sentinelScanComment,
     processCommunityReport,
     militaryAudit,
     modDecision,
