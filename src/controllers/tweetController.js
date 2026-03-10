@@ -5,20 +5,16 @@ const { deleteFromStorage }  = require('../config/firebase');
 const { sentinelScanText, sentinelScanImage, processCommunityReport } = require('../middlewares/aegis');
 
 // ─── Sosyal Embed URL Tespiti ────────────────────────────────────────────────
-// Instagram ve TikTok linkleri, Aegis'ten bağımsız olarak her zaman yakalanır.
-// YouTube ve Twitter da desteklenir.
 function detectSocialEmbed(content) {
     if (!content) return null;
 
     const patterns = [
         {
             platform: 'instagram',
-            // instagram.com altındaki tüm geçerli paylaşım yollarını yakalar
             regex: /https?:\/\/(www\.)?instagram\.com\/(p|reel|tv|stories|s)\/([A-Za-z0-9_\-]+)\/?[^\s]*/i,
         },
         {
             platform: 'tiktok',
-            // tiktok.com/@ ve kısa link (vm.tiktok.com) formatlarını yakalar
             regex: /https?:\/\/((www\.)?tiktok\.com\/@[^\s/]+\/video\/\d+|vm\.tiktok\.com\/[A-Za-z0-9]+)[^\s]*/i,
         },
         {
@@ -74,7 +70,6 @@ exports.createTweet = async (req, res) => {
             return res.status(403).json({ error: 'Bugünlük 3 tweet hakkın bitti!' });
         }
 
-        // ── AEGIS KAT. 1: Sentinel Scan ─────────────────────────────────────
         const [textResult, imageResult] = await Promise.all([
             hasText  ? sentinelScanText(content.trim()) : Promise.resolve({ blocked: false }),
             hasImage ? sentinelScanImage(imageUrl)      : Promise.resolve({ blocked: false }),
@@ -95,10 +90,6 @@ exports.createTweet = async (req, res) => {
             });
         }
 
-        // ── Sosyal Embed Tespiti (Aegis'ten BAĞIMSIZ) ───────────────────────
-        // Instagram veya TikTok linki varsa Aegis kararından bağımsız olarak
-        // socialEmbed alanına kaydedilir. Aegis engellemiş olsa dahi bu adım
-        // yukarıdaki kontrollerden geçtikten sonra çalışır.
         const socialEmbed = hasText ? detectSocialEmbed(content.trim()) : null;
 
         if (socialEmbed) {
@@ -188,16 +179,13 @@ exports.unlikeTweet = async (req, res) => {
     }
 };
 
-// POST /api/report/:tweetId  —  AEGIS KAT. 2: Community Signal
-// Body: { deviceId: string, reason: string }
-// reason → "Küfür/Hakaret" | "Spam" | "Kişisel Gizlilik İhlali" | "Diğer"
+// POST /api/report/:tweetId
 exports.reportTweet = async (req, res) => {
     try {
         const { deviceId, reason } = req.body;
 
         if (!deviceId) return res.status(400).json({ error: 'deviceId gerekli.' });
 
-        // Geçerli neden listesi (frontend ile senkronize)
         const VALID_REASONS = ['Küfür/Hakaret', 'Spam', 'Kişisel Gizlilik İhlali', 'Diğer'];
         const sanitizedReason = VALID_REASONS.includes(reason) ? reason : 'Diğer';
 
@@ -232,6 +220,34 @@ exports.getMyTweets = async (req, res) => {
         res.json(tweets);
     } catch (err) {
         console.error('my-tweets hatası:', err);
+        res.status(500).json({ error: 'Sunucu hatası!' });
+    }
+};
+
+// GET /api/posts/:id
+exports.getPostById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!id.match(/^[a-f\d]{24}$/i)) {
+            return res.status(400).json({ error: 'Geçersiz gönderi ID formatı.' });
+        }
+
+        const tweet = await Tweet.findById(id, { likedBy: 0, reportedBy: 0 }).lean();
+
+        if (!tweet) {
+            return res.status(404).json({ error: 'Gönderi bulunamadı.' });
+        }
+
+        if (tweet.aegisStatus === 'removed' || tweet.aegisStatus === 'suspended') {
+            return res.status(403).json({
+                error: 'Bu gönderi kaldırıldı veya inceleme altında.',
+            });
+        }
+
+        res.json(tweet);
+    } catch (err) {
+        console.error('getPostById hatası:', err);
         res.status(500).json({ error: 'Sunucu hatası!' });
     }
 };

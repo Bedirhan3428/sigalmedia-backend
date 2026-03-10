@@ -10,5 +10,6 @@ router.delete('/like/:tweetId',                 tc.unlikeTweet);
 // ── Aegis Katman 2: Community Signal ────────────────────────────────────────
 router.post('/report/:tweetId',                 reportLimiter, tc.reportTweet);
 router.get('/my-tweets/:deviceId',              tc.getMyTweets);
+router.get('/posts/:id',                        tc.getPostById); // ← DÜZELTİLDİ
 
 module.exports = router;
