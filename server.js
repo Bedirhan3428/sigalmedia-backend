@@ -25,10 +25,12 @@ app.set('trust proxy', 1);
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '1mb' }));
 
+// FIX #4: Vercel deploy adresi eklendi
 app.use(cors({
     origin: [
         'https://sigalmedia.site',
         'https://www.sigalmedia.site',
+        'https://sigalmedia.vercel.app',
         'http://localhost:3000',
         'http://localhost:5173',
     ],
@@ -65,7 +67,7 @@ async function boot() {
         Tweet.collection.createIndex({ createdAt: -1 }),
         Tweet.collection.createIndex({ likedBy: 1 }),
         Tweet.collection.createIndex({ createdAt: 1 }),
-        Tweet.collection.createIndex({ aegisStatus: 1, reportCount: -1 }),  // Aegis quarantine sorguları
+        Tweet.collection.createIndex({ aegisStatus: 1, reportCount: -1 }),
         Comment.collection.createIndex({ tweetId: 1 }),
         Comment.collection.createIndex({ likedBy: 1 }),
         User.collection.createIndex({ deviceId: 1 }, { unique: true }),

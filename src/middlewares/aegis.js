@@ -15,33 +15,12 @@ async function sentinelScanText(text) {
     try {
         const res = await groq.chat.completions.create({
             model: SENTINEL_MODEL,
-            temperature: 0.0, // Sıfır tolerans, yaratıcılık kapalı, sadece kurala uyar
+            temperature: 0.0,
             max_tokens: 5,
             messages: [
                 {
                     role: 'system',
-                    content: `Sen acımasız ama adil bir yapay zeka filtresisin. YALNIZCA "BLOCK" veya "PASS" kelimelerinden birini yaz. Başka hiçbir harf veya noktalama işareti kullanma.
-
-KURAL: Sadece ama SADECE aşağıdaki 2 durumda "BLOCK" yaz:
-1. AÇIK ÖLÜM VEYA FİZİKSEL ŞİDDET TEHDİDİ (Birini yaralama/öldürme beyanı)
-2. YASADIŞI MADDE/SİLAH SATIŞI
-
-BUNLAR KESİNLİKLE "PASS" ALMALIDIR:
-- Günlük normal konuşmalar (merhaba, nasılsın, günaydın)
-- Argo, hakaret(örneğin:"sen çirkinsin, sen aptalsıngibi") ama bartı ailevi ve kişisel değerlere küfr argo engelle (Lise ortamı olduğu için esnektir)
-- Okul, öğretmen, sistem eleştirileri, dedikodu veya sitemler
-- Şakalar, ironiler, troller
-
-ÖRNEKLER:
-"merhaba kanka" -> PASS
-"okulun kantini iğrenç aq" -> PASS
-"fizikçinin ben ta..." -> PASS
-"seni okul çıkışı tenhada bıçaklayacağım" -> BLOCK
-"elinde ot olan var mı satılık" -> BLOCK
-"bugün çok sıkıcıydı" -> PASS
-"oğlum sen mal mısın" -> PASS
-"kafana sıkarım senin" -> BLOCK
-"yarın matematik sınavı var of" -> PASS`
+                    content: `Sen acımasız ama adil bir yapay zeka filtresisin. YALNIZCA "BLOCK" veya "PASS" kelimelerinden birini yaz. Başka hiçbir harf veya noktalama işareti kullanma.\n\nKURAL: Sadece ama SADECE aşağıdaki 2 durumda "BLOCK" yaz:\n1. AÇIK ÖLÜM VEYA FİZİKSEL ŞİDDET TEHDİDİ (Birini yaralama/öldürme beyanı)\n2. YASADIŞI MADDE/SİLAH SATIŞI\n\nBUNLAR KESİNLİKLE "PASS" ALMALIDIR:\n- Günlük normal konuşmalar (merhaba, nasılsın, günaydın)\n- Argo, hafif küfür (lise ortamı için esnektir)\n- Okul, öğretmen, sistem eleştirileri, dedikodu veya sitemler\n- Şakalar, ironiler, troller\n\nÖRNEKLER:\n"merhaba kanka" -> PASS\n"okulun kantini iğrenç aq" -> PASS\n"seni okul çıkışı tenhada bıçaklayacağım" -> BLOCK\n"elinde ot olan var mı satılık" -> BLOCK\n"bugün çok sıkıcıydı" -> PASS\n"oğlum sen mal mısın" -> PASS\n"kafana sıkarım senin" -> BLOCK\n"yarın matematik sınavı var of" -> PASS`
                 },
                 { role: 'user', content: text },
             ],
@@ -71,19 +50,7 @@ async function sentinelScanComment(text) {
             messages: [
                 {
                     role: 'system',
-                    content: `Sen bir yorum denetleyicisisin. Sadece "BLOCK" veya "PASS" döndür.
-KURAL: Yalnızca açık kanlı tehdit, terör propagandası veya yasadışı satış varsa BLOCK de.
-Diğer her şeye (argo, saçmalama, spam, eleştiri) PASS de.
-
-ÖRNEKLER:
-"ilk" -> PASS
-"ne diyon la değişik" -> PASS
-"senin o ağzını yüzünü kırarım çıkışta bekle" -> BLOCK
-"+1" -> PASS
-"silah satılır DM" -> BLOCK
-"çok saçma bi post" -> PASS
-"ananı avradını..." -> PASS
-"slm" -> PASS`
+                    content: `Sen bir yorum denetleyicisisin. Sadece "BLOCK" veya "PASS" döndür.\nKURAL: Yalnızca açık kanlı tehdit, terör propagandası veya yasadışı satış varsa BLOCK de.\nDiğer her şeye (argo, saçmalama, spam, eleştiri) PASS de.\n\nÖRNEKLER:\n"ilk" -> PASS\n"ne diyon la değişik" -> PASS\n"senin o ağzını yüzünü kırarım çıkışta bekle" -> BLOCK\n"+1" -> PASS\n"silah satılır DM" -> BLOCK\n"çok saçma bi post" -> PASS\n"slm" -> PASS`
                 },
                 { role: 'user', content: text },
             ],
@@ -116,9 +83,7 @@ async function sentinelScanImage(imageUrl) {
                     { type: 'image_url', image_url: { url: imageUrl } },
                     {
                         type: 'text',
-                        text: `Sen bir görsel güvenlik filtresisin. YALNIZCA "RED" veya "ONAY" yaz. Başka hiçbir şey yazma.
-KURAL: Sadece açık çıplaklık/porno veya ağır kanlı/parçalanmış ceset görüntüsü varsa "RED" yaz.
-Normal insan fotoğrafları, yüzler, manzaralar, oyun ekran görüntüleri, capsler, internet şakaları, üzerinde yazı olan resimler KESİNLİKLE "ONAY" almalıdır.`,
+                        text: `Sen bir görsel güvenlik filtresisin. YALNIZCA "RED" veya "ONAY" yaz. Başka hiçbir şey yazma.\nKURAL: Sadece açık çıplaklık/porno veya ağır kanlı/parçalanmış ceset görüntüsü varsa "RED" yaz.\nNormal insan fotoğrafları, yüzler, manzaralar, oyun ekran görüntüleri, capsler, internet şakaları, üzerinde yazı olan resimler KESİNLİKLE "ONAY" almalıdır.`,
                     },
                 ],
             }],
@@ -181,7 +146,8 @@ async function processCommunityReport(tweetId, reporterDeviceId, reason = '') {
 
 // ════════════════════════════════════════════════════════════════════════════
 // KATMAN 3 — MILITARY AUDIT
-// UNSAFE → 'suspended' (otomatik silinmez, admin onaylar)
+// FIX #7: Prompt artık Sentinel ile tutarlı — aile küfürü ve ağır hakaret
+// her iki katmanda da UNSAFE/BLOCK sayılıyor.
 // ════════════════════════════════════════════════════════════════════════════
 async function militaryAudit(tweetId) {
     const tweet = await Tweet.findById(tweetId, {
@@ -207,15 +173,18 @@ async function militaryAudit(tweetId) {
                         content: `Lise öğrencileri platformu. 5 kişi şikayet etti, derin analiz yap.
 
 UNSAFE (bunlardan BİRİ varsa):
-- Üstü kapalı tehdit: "sonunda göreceksin", "pişman ederim seni", "hesap sorarım"
+- Üstü kapalı veya açık fiziksel tehdit: "sonunda göreceksin", "pişman ederim seni", "kafana sıkarım"
 - Kişisel zorbalık: belirli biri hedef alınarak sistematik aşağılama
 - Ağır nefret söylemi: köken/dış görünüş/cinsiyet hedefli
-- Ağır hakaret (anne/baba sövgüsü tarzı),argo, küfür
+- Aile hakareti (anne/baba/aile üyelerine yönelik ağır küfür)
+- Yasadışı madde/silah satışına yönelik çağrı
 
 SAFE (bunların hepsi):
-- Dedikodu, eleştiri, şikayet(kişi hedefsiz),argo(hahif küfür esnek),sitemler
+- Dedikodu, kişisel olmayan eleştiri, genel şikayet
+- Hafif argo (aq, lan, oğlum gibi)
 - "Bu okul berbat", "müdür saçmaladı" gibi genel sitemler
 - Hayal kırıklığı, kızgınlık ifadesi
+- Kara mizah, ironi
 
 JSON: {"verdict":"SAFE","score":0,"reason":"açıklama"}`,
                     },

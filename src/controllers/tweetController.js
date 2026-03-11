@@ -239,7 +239,8 @@ exports.getPostById = async (req, res) => {
             return res.status(404).json({ error: 'Gönderi bulunamadı.' });
         }
 
-        if (tweet.aegisStatus === 'removed' || tweet.aegisStatus === 'suspended') {
+        // FIX #3: quarantine da eklendi — zararlı olabilecek tweetler herkese açık dönmemeli
+        if (['removed', 'suspended', 'quarantine'].includes(tweet.aegisStatus)) {
             return res.status(403).json({
                 error: 'Bu gönderi kaldırıldı veya inceleme altında.',
             });

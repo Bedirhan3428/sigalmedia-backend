@@ -74,16 +74,45 @@ function startCronJobs() {
     });
 
     // ── Her gece 00:00 — Günlük limitleri sıfırla ───────────────────────────
+    // FIX #5: lastResetDate kullanılarak server restart'larında duplicate sıfırlama önlenir.
+    // Aynı günde birden fazla restart olsa bile limitler bir kez sıfırlanır.
     cron.schedule('0 0 * * *', async () => {
         try {
-            await User.updateMany({}, { $set: { dailyLimit: 3 } });
-            console.log("✅ Günlük limitler sıfırlandı.");
+            const today     = new Date();
+            today.setHours(0, 0, 0, 0);  // Günün başı (00:00:00)
+
+            // Sadece bugün henüz sıfırlanmamış kullanıcıların limitlerini sıfırla
+            const result = await User.updateMany(
+                { lastResetDate: { $lt: today } },
+                { $set: { dailyLimit: 3, lastResetDate: today } }
+            );
+
+            console.log(`✅ Günlük limitler sıfırlandı. (${result.modifiedCount} kullanıcı)`);
         } catch (err) {
             console.error("Limit sıfırlama hatası:", err);
         }
     });
 
-    console.log('⏰ Cron job\'lar başlatıldı.');
+    // ── Boot'ta da kontrol et — server gece yarısından sonra başlamışsa sıfırla ─
+    (async () => {
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const result = await User.updateMany(
+                { lastResetDate: { $lt: today } },
+                { $set: { dailyLimit: 3, lastResetDate: today } }
+            );
+
+            if (result.modifiedCount > 0) {
+                console.log(`✅ Boot limit kontrolü: ${result.modifiedCount} kullanıcı sıfırlandı.`);
+            }
+        } catch (err) {
+            console.error("Boot limit kontrolü hatası:", err);
+        }
+    })();
+
+    console.log("⏰ Cron job'lar başlatıldı.");
 }
 
 module.exports = { startCronJobs };
