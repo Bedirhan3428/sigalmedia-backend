@@ -3,6 +3,7 @@ const { Tweet }             = require('../models/Tweet');
 const { User }              = require('../models/User');
 const Comment               = require('../models/Comment');
 const { deleteFromStorage } = require('../config/firebase');
+const { createDailyBotAccount, runBotAction, initBotSystem } = require('../bots/botEngine');
 
 function startCronJobs() {
 
@@ -45,6 +46,24 @@ function startCronJobs() {
         }
     });
 
+    // ── Her 15 dakika: Bot aksiyonu ──────────────────────────────────────────
+    cron.schedule('*/15 * * * *', async () => {
+        try {
+            await runBotAction();
+        } catch (err) {
+            console.error('🤖 Bot aksiyon cron hatası:', err.message);
+        }
+    });
+
+    // ── Her gece 02:00 — Yeni bot hesabı oluştur ────────────────────────────
+    cron.schedule('0 2 * * *', async () => {
+        try {
+            await createDailyBotAccount();
+        } catch (err) {
+            console.error('🤖 Bot hesap oluşturma cron hatası:', err.message);
+        }
+    });
+
     // ── Her gece 03:00 — 45 günden eski tweetleri temizle ───────────────────
     cron.schedule('0 3 * * *', async () => {
         try {
@@ -74,16 +93,14 @@ function startCronJobs() {
     });
 
     // ── Her gece 00:00 — Günlük limitleri sıfırla ───────────────────────────
-    // FIX #5: lastResetDate kullanılarak server restart'larında duplicate sıfırlama önlenir.
-    // Aynı günde birden fazla restart olsa bile limitler bir kez sıfırlanır.
     cron.schedule('0 0 * * *', async () => {
         try {
-            const today     = new Date();
-            today.setHours(0, 0, 0, 0);  // Günün başı (00:00:00)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-            // Sadece bugün henüz sıfırlanmamış kullanıcıların limitlerini sıfırla
+            // Bot hesapları hariç sıfırla (botların limiti zaten 999)
             const result = await User.updateMany(
-                { lastResetDate: { $lt: today } },
+                { lastResetDate: { $lt: today }, isBot: { $ne: true } },
                 { $set: { dailyLimit: 3, lastResetDate: today } }
             );
 
@@ -93,26 +110,29 @@ function startCronJobs() {
         }
     });
 
-    // ── Boot'ta da kontrol et — server gece yarısından sonra başlamışsa sıfırla ─
+    // ── Boot'ta da kontrol et ─────────────────────────────────────────────────
     (async () => {
         try {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
             const result = await User.updateMany(
-                { lastResetDate: { $lt: today } },
+                { lastResetDate: { $lt: today }, isBot: { $ne: true } },
                 { $set: { dailyLimit: 3, lastResetDate: today } }
             );
 
             if (result.modifiedCount > 0) {
                 console.log(`✅ Boot limit kontrolü: ${result.modifiedCount} kullanıcı sıfırlandı.`);
             }
+
+            // Bot sistemini başlat (seed + ilk hesap)
+            await initBotSystem();
         } catch (err) {
-            console.error("Boot limit kontrolü hatası:", err);
+            console.error("Boot kontrol hatası:", err);
         }
     })();
 
-    console.log("⏰ Cron job'lar başlatıldı.");
+    console.log("⏰ Cron job'lar başlatıldı. (Bot: her 15dk aksiyon, her gece 02:00 yeni hesap)");
 }
 
 module.exports = { startCronJobs };

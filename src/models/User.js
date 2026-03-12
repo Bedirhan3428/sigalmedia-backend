@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema({
     followers:     [{ type: String }],
     following:     [{ type: String }],
     role:          { type: String, enum: ROLES, default: 'user' },
+    // ── Bot sistemi ──────────────────────────────────────────────────────────
+    isBot:         { type: Boolean, default: false },
+    isActive:      { type: Boolean, default: true },
+    createdAt:     { type: Date,    default: Date.now },
 });
 
 const User = mongoose.model('User', userSchema);

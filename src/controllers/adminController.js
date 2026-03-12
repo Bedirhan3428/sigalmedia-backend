@@ -1,6 +1,8 @@
 const { Tweet }        = require('../models/Tweet');
 const { User }         = require('../models/User');
 const Comment          = require('../models/Comment');
+const BotExample       = require('../models/BotExample');
+const BotEvent         = require('../models/BotEvent');
 const { modDecision, militaryAudit } = require('../middlewares/aegis');
 
 // ─── GET /api/admin/quarantine ───────────────────────────────────────────────
@@ -25,7 +27,6 @@ exports.getQuarantine = async (req, res) => {
 };
 
 // ─── GET /api/admin/suspended ────────────────────────────────────────────────
-// Military Audit'te UNSAFE çıkan, admin onayı bekleyen tweetler
 exports.getSuspended = async (req, res) => {
     try {
         const { page = 1, limit = 20 } = req.query;
@@ -47,7 +48,6 @@ exports.getSuspended = async (req, res) => {
 };
 
 // ─── GET /api/admin/all-tweets ───────────────────────────────────────────────
-// Tüm tweetleri admin için listeler
 exports.getAllTweets = async (req, res) => {
     try {
         const { page = 1, limit = 30, status } = req.query;
@@ -98,7 +98,6 @@ exports.getAuditLog = async (req, res) => {
 };
 
 // ─── POST /api/admin/decision/:tweetId ───────────────────────────────────────
-// Mod kararı: 'active' (restore), 'removed' (sil + neden), 'cleared'
 exports.makeDecision = async (req, res) => {
     try {
         const { decision, reason } = req.body;
@@ -166,7 +165,7 @@ exports.getStats = async (req, res) => {
     try {
         const [
             totalTweets, activeTweets, quarantineTweets, suspendedTweets,
-            removedTweets, clearedTweets, totalUsers, totalComments
+            removedTweets, clearedTweets, totalUsers, totalComments, totalBots
         ] = await Promise.all([
             Tweet.countDocuments({}),
             Tweet.countDocuments({ aegisStatus: 'active' }),
@@ -174,8 +173,9 @@ exports.getStats = async (req, res) => {
             Tweet.countDocuments({ aegisStatus: 'suspended' }),
             Tweet.countDocuments({ aegisStatus: 'removed' }),
             Tweet.countDocuments({ aegisStatus: 'cleared' }),
-            User.countDocuments({}),
+            User.countDocuments({ isBot: { $ne: true } }),
             Comment.countDocuments({}),
+            User.countDocuments({ isBot: true }),
         ]);
 
         res.json({
@@ -184,7 +184,7 @@ exports.getStats = async (req, res) => {
                 quarantine: quarantineTweets, suspended: suspendedTweets,
                 removed: removedTweets, cleared: clearedTweets
             },
-            users:    { total: totalUsers },
+            users:    { total: totalUsers, bots: totalBots },
             comments: { total: totalComments },
         });
     } catch (err) {
@@ -219,7 +219,6 @@ exports.updateUserRole = async (req, res) => {
 };
 
 // ─── DELETE /api/admin/tweet/:tweetId ────────────────────────────────────────
-// Admin tweeti siler + sebep belirtir (tweet DB'de removed olarak işaretlenir)
 exports.adminDeleteTweet = async (req, res) => {
     try {
         const { reason = 'Topluluk kurallarına aykırı içerik.' } = req.body;
@@ -227,7 +226,6 @@ exports.adminDeleteTweet = async (req, res) => {
         const tweet = await Tweet.findById(req.params.tweetId).lean();
         if (!tweet) return res.status(404).json({ error: "Tweet bulunamadı." });
 
-        // Tweet'i silmek yerine 'removed' yap + neden kaydet (kullanıcı görebilsin)
         await Tweet.findByIdAndUpdate(req.params.tweetId, {
             $set: {
                 aegisStatus: 'removed',
@@ -252,6 +250,197 @@ exports.adminDeleteTweet = async (req, res) => {
         res.json({ message: "Tweet kaldırıldı.", reason });
     } catch (err) {
         console.error("admin delete tweet hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// BOT EXAMPLE CRUD (Super Admin)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/admin/bot-examples ─────────────────────────────────────────────
+exports.getBotExamples = async (req, res) => {
+    try {
+        const { type } = req.query;
+        const filter = { active: true };
+        if (type && ['tweet', 'comment'].includes(type)) filter.type = type;
+
+        const examples = await BotExample.find(filter)
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.json({ examples });
+    } catch (err) {
+        console.error("bot-examples get hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── POST /api/admin/bot-examples ────────────────────────────────────────────
+exports.addBotExample = async (req, res) => {
+    try {
+        const { type, content } = req.body;
+
+        if (!['tweet', 'comment'].includes(type))
+            return res.status(400).json({ error: "Geçersiz tür. 'tweet' veya 'comment' olmalı." });
+        if (!content?.trim())
+            return res.status(400).json({ error: "İçerik boş olamaz." });
+        if (content.trim().length > 280)
+            return res.status(400).json({ error: "İçerik 280 karakteri geçemez." });
+
+        const example = await BotExample.create({
+            type,
+            content:  content.trim(),
+            addedBy:  req.adminDeviceId,
+        });
+
+        console.log(`🤖 Yeni bot örneği eklendi: [${type}] "${content.slice(0, 40)}" by: ${req.adminDeviceId}`);
+        res.json(example);
+    } catch (err) {
+        console.error("bot-examples post hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── DELETE /api/admin/bot-examples/:id ──────────────────────────────────────
+exports.deleteBotExample = async (req, res) => {
+    try {
+        const example = await BotExample.findByIdAndUpdate(
+            req.params.id,
+            { $set: { active: false } },
+            { new: true }
+        ).lean();
+
+        if (!example) return res.status(404).json({ error: "Örnek bulunamadı." });
+
+        console.log(`🤖 Bot örneği silindi: ${req.params.id} by: ${req.adminDeviceId}`);
+        res.json({ message: "Örnek silindi." });
+    } catch (err) {
+        console.error("bot-examples delete hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ════════════════════════════════════════════════════════════════════════════
+// BOT EVENT CRUD (Super Admin) — tarih bazlı etkinlik takvimi
+// ════════════════════════════════════════════════════════════════════════════
+
+// ─── GET /api/admin/bot-events ────────────────────────────────────────────────
+exports.getBotEvents = async (req, res) => {
+    try {
+        const { past } = req.query;
+        const filter = { active: true };
+
+        if (past !== '1') {
+            // Varsayılan: sadece gelecek + bugün
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            filter.date = { $gte: todayStart };
+        }
+
+        const events = await BotEvent.find(filter)
+            .sort({ date: 1 })
+            .lean();
+
+        res.json({ events });
+    } catch (err) {
+        console.error("bot-events get hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── POST /api/admin/bot-events ───────────────────────────────────────────────
+exports.addBotEvent = async (req, res) => {
+    try {
+        const { title, date, type = 'other', description = '' } = req.body;
+
+        if (!title?.trim())
+            return res.status(400).json({ error: "Etkinlik başlığı boş olamaz." });
+        if (!date)
+            return res.status(400).json({ error: "Tarih zorunludur." });
+        if (!['exam', 'holiday', 'special', 'other'].includes(type))
+            return res.status(400).json({ error: "Geçersiz etkinlik türü." });
+
+        const event = await BotEvent.create({
+            title:       title.trim(),
+            date:        new Date(date),
+            type,
+            description: description.trim().slice(0, 200),
+            addedBy:     req.adminDeviceId,
+        });
+
+        console.log(`📅 Yeni bot etkinliği: "${title}" @ ${date} by: ${req.adminDeviceId}`);
+        res.json({ event });
+    } catch (err) {
+        console.error("bot-events post hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── DELETE /api/admin/bot-events/:id ────────────────────────────────────────
+exports.deleteBotEvent = async (req, res) => {
+    try {
+        const event = await BotEvent.findByIdAndUpdate(
+            req.params.id,
+            { $set: { active: false } },
+            { new: true }
+        ).lean();
+
+        if (!event) return res.status(404).json({ error: "Etkinlik bulunamadı." });
+
+        console.log(`📅 Bot etkinliği silindi: ${req.params.id} by: ${req.adminDeviceId}`);
+        res.json({ message: "Etkinlik silindi." });
+    } catch (err) {
+        console.error("bot-events delete hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── PUT /api/admin/bot/:botId/toggle ────────────────────────────────────────
+exports.toggleBot = async (req, res) => {
+    try {
+        const bot = await User.findOne({ _id: req.params.botId, isBot: true });
+        if (!bot) return res.status(404).json({ error: "Bot bulunamadı." });
+
+        bot.isActive = !bot.isActive;
+        await bot.save();
+
+        console.log(`🤖 Bot ${bot.isActive ? 'açıldı' : 'kapatıldı'}: ${bot.username}`);
+        res.json({ message: `Bot ${bot.isActive ? 'aktif' : 'devre dışı'}.`, isActive: bot.isActive });
+    } catch (err) {
+        console.error("toggleBot hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── PUT /api/admin/bots/disable-all ─────────────────────────────────────────
+exports.disableAllBots = async (req, res) => {
+    try {
+        const { active } = req.body; // true = hepsini aç, false = hepsini kapat
+        const result = await User.updateMany(
+            { isBot: true },
+            { $set: { isActive: !!active } }
+        );
+
+        console.log(`🤖 Tüm botlar ${active ? 'açıldı' : 'kapatıldı'}: ${result.modifiedCount} bot`);
+        res.json({ message: `${result.modifiedCount} bot ${active ? 'aktif' : 'devre dışı'}.` });
+    } catch (err) {
+        console.error("disableAllBots hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// ─── GET /api/admin/bots ──────────────────────────────────────────────────────
+exports.getBots = async (req, res) => {
+    try {
+        const bots = await User.find(
+            { isBot: true },
+            { deviceId: 1, username: 1, avatar: 1, isActive: 1, createdAt: 1 }
+        ).sort({ createdAt: -1 }).lean();
+
+        res.json({ bots });
+    } catch (err) {
+        console.error("getBots hatası:", err);
         res.status(500).json({ error: "Sunucu hatası!" });
     }
 };
