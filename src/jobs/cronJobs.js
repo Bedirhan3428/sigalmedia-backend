@@ -1,4 +1,5 @@
 const cron    = require('node-cron');
+const axios   = require('axios'); // Sunucuyu dürtmek için gerekli
 const { Tweet }             = require('../models/Tweet');
 const { User }              = require('../models/User');
 const Comment               = require('../models/Comment');
@@ -6,6 +7,19 @@ const { deleteFromStorage } = require('../config/firebase');
 const { createDailyBotAccount, runBotAction, initBotSystem } = require('../bots/botEngine');
 
 function startCronJobs() {
+
+    // ── RENDER / RAILWAY KEEP-ALIVE (UYKU ÖNLEYİCİ) ──────────────────────────
+    // Her 10 dakikada bir kendi kendine istek atarak sunucunun kapanmasını engeller.
+    cron.schedule('*/10 * * * *', async () => {
+        try {
+            const url = 'https://sigalmedia-backend-1.onrender.com';
+            await axios.get(url);
+            console.log(`📡 Keep-Alive: Sunucu uyandırıldı (${new Date().toLocaleTimeString('tr-TR')})`);
+        } catch (err) {
+            // Hata alsa bile (mesela sayfa 404 dönse bile) istek ulaştığı için Render uyanır.
+            console.log(`📡 Keep-Alive Sinyali Gönderildi (Durum: ${err.message})`);
+        }
+    });
 
     // ── Her 10 dakika: Skor güncelle ─────────────────────────────────────────
     cron.schedule('*/10 * * * *', async () => {
@@ -98,7 +112,6 @@ function startCronJobs() {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
-            // Bot hesapları hariç sıfırla (botların limiti zaten 999)
             const result = await User.updateMany(
                 { lastResetDate: { $lt: today }, isBot: { $ne: true } },
                 { $set: { dailyLimit: 3, lastResetDate: today } }
@@ -125,14 +138,13 @@ function startCronJobs() {
                 console.log(`✅ Boot limit kontrolü: ${result.modifiedCount} kullanıcı sıfırlandı.`);
             }
 
-            // Bot sistemini başlat (seed + ilk hesap)
             await initBotSystem();
         } catch (err) {
             console.error("Boot kontrol hatası:", err);
         }
     })();
 
-    console.log("⏰ Cron job'lar başlatıldı. (Bot: her 15dk aksiyon, her gece 02:00 yeni hesap)");
+    console.log("⏰ Cron job'lar başlatıldı. (Bot: 15dk, Skor: 10dk, Keep-Alive: 10dk)");
 }
 
 module.exports = { startCronJobs };
