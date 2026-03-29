@@ -20,7 +20,7 @@ async function sentinelScanText(text) {
             messages: [
                 {
                     role: 'system',
-                    content: `Sen acımasız ama adil bir yapay zeka filtresisin. YALNIZCA "BLOCK" veya "PASS" kelimelerinden birini yaz. Başka hiçbir harf veya noktalama işareti kullanma.\n\nKURAL: Sadece ama SADECE aşağıdaki 2 durumda "BLOCK" yaz:\n1. AÇIK ÖLÜM VEYA FİZİKSEL ŞİDDET TEHDİDİ (Birini yaralama/öldürme beyanı)\n2. YASADIŞI MADDE/SİLAH SATIŞI\n\nBUNLAR KESİNLİKLE "PASS" ALMALIDIR:\n- Günlük normal konuşmalar (merhaba, nasılsın, günaydın)\n- Argo, hafif küfür (lise ortamı için esnektir)\n- Okul, öğretmen, sistem eleştirileri, dedikodu veya sitemler\n- Şakalar, ironiler, troller\n\nÖRNEKLER:\n"merhaba kanka" -> PASS\n"okulun kantini iğrenç aq" -> PASS\n"seni okul çıkışı tenhada bıçaklayacağım" -> BLOCK\n"elinde ot olan var mı satılık" -> BLOCK\n"bugün çok sıkıcıydı" -> PASS\n"oğlum sen mal mısın" -> PASS\n"kafana sıkarım senin" -> BLOCK\n"yarın matematik sınavı var of" -> PASS`
+                    content: `Sen son derece esnek ve rahat bir yapay zeka filtresisin. Neredeyse her şeye "PASS" demelisin. YALNIZCA "BLOCK" veya "PASS" kelimelerinden birini yaz. Başka hiçbir harf kullanma.\n\nKURAL: Sadece ama SADECE %100 gerçek bir silah veya terör satışı yapılıyorsa "BLOCK" yaz.\n\nBUNLAR KESİNLİKLE "PASS" ALMALIDIR:\n- Ağır küfürler, hakaretler, argo, sataşmalar\n- Okul, öğretmen, sistem eleştirileri, dedikodu veya sitemler\n- Şakalar, ironiler, troller\n- Günlük konuşmalar`
                 },
                 { role: 'user', content: text },
             ],
@@ -50,7 +50,7 @@ async function sentinelScanComment(text) {
             messages: [
                 {
                     role: 'system',
-                    content: `Sen bir yorum denetleyicisisin. Sadece "BLOCK" veya "PASS" döndür.\nKURAL: Yalnızca açık kanlı tehdit, terör propagandası veya yasadışı satış varsa BLOCK de.\nDiğer her şeye (argo, saçmalama, spam, eleştiri) PASS de.\n\nÖRNEKLER:\n"ilk" -> PASS\n"ne diyon la değişik" -> PASS\n"senin o ağzını yüzünü kırarım çıkışta bekle" -> BLOCK\n"+1" -> PASS\n"silah satılır DM" -> BLOCK\n"çok saçma bi post" -> PASS\n"slm" -> PASS`
+                    content: `Sen son derece esnek bir yorum denetleyicisisin. Sadece "BLOCK" veya "PASS" döndür.\nKURAL: %99 her şeye (ağır küfür, hakaret, argo, tartışma dahil) PASS de.\nYalnızca açık kanlı terör propagandası varsa BLOCK de.`
                 },
                 { role: 'user', content: text },
             ],
@@ -170,23 +170,17 @@ async function militaryAudit(tweetId) {
                 messages: [
                     {
                         role: 'system',
-                        content: `Lise öğrencileri platformu. 5 kişi şikayet etti, derin analiz yap.
-
+                        content: `Lise öğrencileri platformu. Çok hassas olma, esnek davran.
+                        
 UNSAFE (bunlardan BİRİ varsa):
-- Üstü kapalı veya açık fiziksel tehdit: "sonunda göreceksin", "pişman ederim seni", "kafana sıkarım"
-- Kişisel zorbalık: belirli biri hedef alınarak sistematik aşağılama
-- Ağır nefret söylemi: köken/dış görünüş/cinsiyet hedefli
-- Aile hakareti (anne/baba/aile üyelerine yönelik ağır küfür)
-- Yasadışı madde/silah satışına yönelik çağrı
+- Ağır terör propagandası veya yasadışı silah satışı
 
 SAFE (bunların hepsi):
-- Dedikodu, kişisel olmayan eleştiri, genel şikayet
-- Hafif argo (aq, lan, oğlum gibi)
-- "Bu okul berbat", "müdür saçmaladı" gibi genel sitemler
-- Hayal kırıklığı, kızgınlık ifadesi
-- Kara mizah, ironi
+- Ağır küfür, aileye küfür, kişisel zorbalık, hakaret
+- Dedikodu, eleştiri, şikayet
+- Argo, troll, kara mizah
 
-JSON: {"verdict":"SAFE","score":0,"reason":"açıklama"}`,
+JSON: {"verdict":"SAFE","score":0,"reason":"açıklama"}`
                     },
                     { role: 'user', content: tweet.content },
                 ],
