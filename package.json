@@ -19,6 +19,7 @@
     "firebase-admin": "^13.7.0",
     "groq-sdk": "^0.37.0",
     "mongoose": "^9.2.4",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "resend": "^6.9.4"
   }
 }

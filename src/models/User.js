@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema({
     lastResetDate: { type: Date,   default: Date.now },
     followers:     [{ type: String }],
     following:     [{ type: String }],
+    savedPosts:    [{ type: String }],
+    bio:           { type: String, default: '' },
     role:          { type: String, enum: ROLES, default: 'user' },
     // ── Bot sistemi ──────────────────────────────────────────────────────────
     isBot:         { type: Boolean, default: false },

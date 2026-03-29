@@ -45,7 +45,7 @@ exports.getUser = async (req, res) => {
 // PUT /api/user/:deviceId
 exports.updateUser = async (req, res) => {
     try {
-        const { username, avatarUrl } = req.body;
+        const { username, avatarUrl, bio } = req.body;
         const { deviceId } = req.params;
 
         if (username) {
@@ -59,6 +59,7 @@ exports.updateUser = async (req, res) => {
         const update = {};
         if (username)                { update.username = username.trim(); update.avatar = username.trim(); }
         if (avatarUrl !== undefined) { update.avatarUrl = avatarUrl; }
+        if (bio !== undefined)       { update.bio = (bio || '').slice(0, 150); }
 
         const user = await User.findOneAndUpdate({ deviceId }, { $set: update }, { new: true }).lean();
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
@@ -83,6 +84,74 @@ exports.updateUser = async (req, res) => {
         res.json({ user });
     } catch (err) {
         console.error("user put hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// POST /api/save/:tweetId
+exports.savePost = async (req, res) => {
+    try {
+        const { deviceId } = req.body;
+        if (!deviceId) return res.status(400).json({ error: "deviceId gerekli." });
+
+        const tweet = await Tweet.findById(req.params.tweetId, { _id: 1 }).lean();
+        if (!tweet) return res.status(404).json({ error: "Gönderi bulunamadı." });
+
+        const user = await User.findOne({ deviceId }, { savedPosts: 1 }).lean();
+        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+        if (user.savedPosts?.includes(req.params.tweetId))
+            return res.status(400).json({ error: "Zaten kaydedilmiş." });
+
+        await User.updateOne({ deviceId }, { $push: { savedPosts: req.params.tweetId } });
+        res.json({ message: "Kaydedildi." });
+    } catch (err) {
+        console.error("save hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// DELETE /api/save/:tweetId
+exports.unsavePost = async (req, res) => {
+    try {
+        const { deviceId } = req.body;
+        if (!deviceId) return res.status(400).json({ error: "deviceId gerekli." });
+
+        await User.updateOne({ deviceId }, { $pull: { savedPosts: req.params.tweetId } });
+        res.json({ message: "Kayıt kaldırıldı." });
+    } catch (err) {
+        console.error("unsave hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// GET /api/saved-posts/:deviceId
+exports.getSavedPosts = async (req, res) => {
+    try {
+        const user = await User.findOne({ deviceId: req.params.deviceId }, { savedPosts: 1 }).lean();
+        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+        const savedIds = user.savedPosts || [];
+        if (savedIds.length === 0) return res.json([]);
+
+        const tweets = await Tweet.find(
+            { _id: { $in: savedIds }, aegisStatus: { $in: ['active', 'cleared'] } },
+            { likedBy: 0, reportedBy: 0 }
+        ).sort({ createdAt: -1 }).lean();
+        res.json(tweets);
+    } catch (err) {
+        console.error("saved-posts hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
+// GET /api/saved-ids/:deviceId
+exports.getSavedIds = async (req, res) => {
+    try {
+        const user = await User.findOne({ deviceId: req.params.deviceId }, { savedPosts: 1 }).lean();
+        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+        res.json({ savedIds: user.savedPosts || [] });
+    } catch (err) {
+        console.error("saved-ids hatası:", err);
         res.status(500).json({ error: "Sunucu hatası!" });
     }
 };

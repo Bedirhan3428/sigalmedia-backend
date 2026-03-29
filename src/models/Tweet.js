@@ -31,6 +31,7 @@ const tweetSchema = new mongoose.Schema({
     content:         { type: String, default: '' },
     imageUrl:        { type: String, default: null },
     imagePath:       { type: String, default: null },
+    mediaType:       { type: String, enum: ['image', 'video', 'story', null], default: null },
     likes:           { type: Number, default: 0 },
     likedBy:         [{ type: String }],
     commentCount:    { type: Number, default: 0 },

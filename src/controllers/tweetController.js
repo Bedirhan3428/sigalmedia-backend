@@ -45,7 +45,7 @@ function detectSocialEmbed(content) {
 // POST /api/tweet
 exports.createTweet = async (req, res) => {
     try {
-        const { deviceId, content, imageUrl, imagePath } = req.body;
+        const { deviceId, content, imageUrl, imagePath, mediaType } = req.body;
 
         console.log('📩 /api/tweet isteği:', {
             deviceId, contentLen: content?.length ?? 0,
@@ -104,6 +104,7 @@ exports.createTweet = async (req, res) => {
                 content:         hasText ? content.trim() : '',
                 imageUrl:        hasImage ? imageUrl  : null,
                 imagePath:       hasImage ? imagePath : null,
+                mediaType:       mediaType || null,
                 socialEmbed:     socialEmbed,
             }),
             User.updateOne({ deviceId }, { $inc: { dailyLimit: -1 } }),

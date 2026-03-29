@@ -14,5 +14,9 @@ router.get('/followers/:deviceId',       uc.getFollowers);
 router.get('/following/:deviceId',       uc.getFollowing);
 router.get('/liked-ids/:deviceId',       uc.getLikedIds);
 router.get('/my-likes/:deviceId',        uc.getMyLikes);
+router.post('/save/:tweetId',            uc.savePost);
+router.delete('/save/:tweetId',          uc.unsavePost);
+router.get('/saved-posts/:deviceId',     uc.getSavedPosts);
+router.get('/saved-ids/:deviceId',       uc.getSavedIds);
 
 module.exports = router;
