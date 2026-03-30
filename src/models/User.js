@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema({
     // ── Bot sistemi ──────────────────────────────────────────────────────────
     isBot:         { type: Boolean, default: false },
     isActive:      { type: Boolean, default: true },
+    emailVerified: { type: Boolean, default: false },
     createdAt:     { type: Date,    default: Date.now },
 });
 

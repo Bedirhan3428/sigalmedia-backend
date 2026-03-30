@@ -5,10 +5,8 @@ const express  = require('express');
 const router   = express.Router();
 const admin    = require('firebase-admin');
 const { User } = require('../models/User');
+const { VerificationToken } = require('../models/VerificationToken');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/emailService');
-
-// Basit token store (production'da Redis kullanılmalı)
-const verifyTokens = new Map(); // token -> { uid, email, createdAt }
 
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 // Firebase Auth'da hesap oluşturulduktan sonra çağrılır.
@@ -44,10 +42,10 @@ router.post('/auth/register', async (req, res) => {
     // Resend ile doğrulama maili
     const { success, token } = await sendVerificationEmail(email, uid);
 
+    // DB'ye token kaydet
     if (success && token) {
-      verifyTokens.set(token, { uid, email, createdAt: Date.now() });
-      // Auto-expire in 24h
-      setTimeout(() => verifyTokens.delete(token), 24 * 60 * 60 * 1000);
+      await VerificationToken.deleteOne({ uid }); // Eskisini temizle
+      await new VerificationToken({ token, uid, email }).save();
     }
 
     res.json({ message: 'Kayıt başarılı. Doğrulama maili gönderildi.' });
@@ -67,8 +65,8 @@ router.post('/auth/send-verification', async (req, res) => {
     const { success, token } = await sendVerificationEmail(email, uid);
 
     if (success && token) {
-      verifyTokens.set(token, { uid, email, createdAt: Date.now() });
-      setTimeout(() => verifyTokens.delete(token), 24 * 60 * 60 * 1000);
+      await VerificationToken.deleteOne({ uid });
+      await new VerificationToken({ token, uid, email }).save();
     }
 
     res.json({ success, message: 'Doğrulama maili gönderildi.' });
@@ -82,35 +80,37 @@ router.post('/auth/send-verification', async (req, res) => {
 router.get('/auth/verify', async (req, res) => {
   try {
     const { token, uid } = req.query;
-    if (!token || !uid) return res.redirect(`https://sigalmedia.site/verify-email?status=invalid`);
-
-    const entry = verifyTokens.get(token);
-    if (!entry || entry.uid !== uid) {
-      return res.redirect(`https://sigalmedia.site/verify-email?status=expired`);
+    if (!token || !uid) {
+      return res.status(400).json({ error: 'Geçersiz veya eksik link.' });
     }
 
-    // Expire check: 24h
-    if (Date.now() - entry.createdAt > 24 * 60 * 60 * 1000) {
-      verifyTokens.delete(token);
-      return res.redirect(`https://sigalmedia.site/verify-email?status=expired`);
+    const entry = await VerificationToken.findOne({ token, uid });
+    if (!entry) {
+      return res.status(400).json({ error: 'Doğrulama linki geçersiz veya süresi dolmuş.' });
     }
 
-    // Update DB
+    // Update MongoDB
     await User.findOneAndUpdate(
       { deviceId: uid },
       { $set: { emailVerified: true } }
     );
 
-    // Also update Firebase Auth custom claims
+    // Update Firebase Auth (Core emailVerified field)
     try {
+      await admin.auth().updateUser(uid, { emailVerified: true });
+      // Opsiyonel: Custom claim de kalsın
       await admin.auth().setCustomUserClaims(uid, { emailVerified: true });
-    } catch {}
+    } catch (firebaseErr) {
+      console.error('Firebase update hatası:', firebaseErr);
+    }
 
-    verifyTokens.delete(token);
-    res.redirect(`https://sigalmedia.site/?verified=1`);
+    // Token'ı sil
+    await VerificationToken.deleteOne({ _id: entry._id });
+
+    res.json({ success: true, message: 'E-posta adresiniz başarıyla doğrulandı.' });
   } catch (err) {
     console.error('verify hatası:', err);
-    res.redirect(`https://sigalmedia.site/verify-email?status=error`);
+    res.status(500).json({ error: 'Doğrulama sırasında bir hata oluştu.' });
   }
 });
 
