@@ -197,10 +197,23 @@ JSON: {"verdict":"SAFE","score":0,"reason":"açıklama"}`
             }
         }
 
-        if (tweet.imageUrl && verdict === 'SAFE') {
-            const imgRes = await sentinelScanImage(tweet.imageUrl);
-            if (imgRes.blocked) {
-                verdict = 'UNSAFE'; reason = 'Görsel uygunsuz içerik.'; auditScore = 95;
+        // Tüm medyaları tara
+        if (verdict === 'SAFE') {
+            const mediaItems = tweet.media || [];
+            if (mediaItems.length === 0 && tweet.imageUrl) {
+                mediaItems.push({ url: tweet.imageUrl, type: 'image' });
+            }
+
+            for (const item of mediaItems) {
+                if (item.type === 'image') {
+                    const imgRes = await sentinelScanImage(item.url);
+                    if (imgRes.blocked) {
+                        verdict = 'UNSAFE'; 
+                        reason = 'Görsellerden biri uygunsuz içerik barındırıyor.'; 
+                        auditScore = 95;
+                        break;
+                    }
+                }
             }
         }
     } catch (err) {

@@ -45,56 +45,63 @@ function detectSocialEmbed(content) {
 // POST /api/tweet
 exports.createTweet = async (req, res) => {
     try {
-        const { deviceId, content, imageUrl, imagePath, mediaType } = req.body;
+        const { deviceId, content, media, mediaType } = req.body;
+
+        // Geriye dönük uyumluluk için tekil görsel desteği (opsiyonel ama iyi olur)
+        let mediaItems = media || [];
+        if (!media && req.body.imageUrl) {
+            mediaItems = [{ url: req.body.imageUrl, path: req.body.imagePath, type: req.body.mediaType || 'image' }];
+        }
 
         console.log('📩 /api/tweet isteği:', {
             deviceId, contentLen: content?.length ?? 0,
-            hasImage: typeof imageUrl === 'string' && imageUrl.length > 0,
+            mediaCount: mediaItems.length,
         });
 
         const hasText  = typeof content === 'string' && content.trim().length > 0;
-        const hasImage = typeof imageUrl === 'string' && imageUrl.startsWith('https://');
+        const hasMedia = mediaItems.length > 0;
 
-        if (!hasText && !hasImage)
-            return res.status(400).json({ error: 'Tweet boş olamaz.' });
+        if (!hasText && !hasMedia)
+            return res.status(400).json({ error: 'Gönderi boş olamaz.' });
         if (hasText && content.length > 280)
             return res.status(400).json({ error: 'Metin maks. 280 karakter.' });
 
         const user = await User.findOne({ deviceId });
         if (!user) {
-            if (hasImage) await deleteFromStorage(imagePath);
+            for (const item of mediaItems) await deleteFromStorage(item.path);
             return res.status(404).json({ error: 'Kullanıcı bulunamadı.' });
         }
         if (user.dailyLimit <= 0) {
-            if (hasImage) await deleteFromStorage(imagePath);
-            return res.status(403).json({ error: 'Bugünlük 3 tweet hakkın bitti!' });
+            for (const item of mediaItems) await deleteFromStorage(item.path);
+            return res.status(403).json({ error: 'Bugünlük 3 gönderi hakkın bitti!' });
         }
 
-        const [textResult, imageResult] = await Promise.all([
-            hasText  ? sentinelScanText(content.trim()) : Promise.resolve({ blocked: false }),
-            hasImage ? sentinelScanImage(imageUrl)      : Promise.resolve({ blocked: false }),
-        ]);
-
+        // Metin taraması
+        const textResult = hasText ? await sentinelScanText(content.trim()) : { blocked: false };
         if (textResult.blocked) {
-            if (hasImage) await deleteFromStorage(imagePath);
+            for (const item of mediaItems) await deleteFromStorage(item.path);
             return res.status(400).json({
                 error: 'Metinde kurallara aykırı içerik sezdik. Hakkın düşmedi.',
                 aegisLayer: 1,
             });
         }
-        if (imageResult.blocked) {
-            await deleteFromStorage(imagePath);
-            return res.status(400).json({
-                error: 'Görsel YZ denetiminden geçemedi: uygunsuz içerik tespit edildi. Hakkın düşmedi.',
-                aegisLayer: 1,
-            });
+
+        // Tüm medyaları tara
+        for (const item of mediaItems) {
+            if (item.type === 'image') {
+                const imgResult = await sentinelScanImage(item.url);
+                if (imgResult.blocked) {
+                    // Hepsi silinsin
+                    for (const m of mediaItems) await deleteFromStorage(m.path);
+                    return res.status(400).json({
+                        error: 'Görsellerden biri YZ denetiminden geçemedi. Hakkın düşmedi.',
+                        aegisLayer: 1,
+                    });
+                }
+            }
         }
 
         const socialEmbed = hasText ? detectSocialEmbed(content.trim()) : null;
-
-        if (socialEmbed) {
-            console.log(`🔗 Sosyal embed tespit edildi → ${socialEmbed.platform}: ${socialEmbed.originalUrl}`);
-        }
 
         const [tweet] = await Promise.all([
             Tweet.create({
@@ -102,9 +109,11 @@ exports.createTweet = async (req, res) => {
                 authorAvatar:    user.username || user.avatar,
                 authorAvatarUrl: user.avatarUrl || null,
                 content:         hasText ? content.trim() : '',
-                imageUrl:        hasImage ? imageUrl  : null,
-                imagePath:       hasImage ? imagePath : null,
-                mediaType:       mediaType || null,
+                media:           mediaItems,
+                // İlk görseli geriye dönük uyumluluk için ana alanlara da koyalım
+                imageUrl:        mediaItems[0]?.url || null,
+                imagePath:       mediaItems[0]?.path || null,
+                mediaType:       mediaType || (mediaItems.length > 1 ? 'multi' : (mediaItems[0]?.type || null)),
                 socialEmbed:     socialEmbed,
             }),
             User.updateOne({ deviceId }, { $inc: { dailyLimit: -1 } }),
@@ -113,7 +122,7 @@ exports.createTweet = async (req, res) => {
         console.log('✅ Tweet kaydedildi:', tweet._id);
         res.json({ message: 'Tweet gönderildi!', remainingLimit: user.dailyLimit - 1, tweetId: tweet._id });
     } catch (err) {
-        console.error('🔥 Tweet endpoint hatası:', err);
+        console.error('🔥 Tweet endpoint hatası:', err.message);
         res.status(500).json({ error: 'Sunucu hatası: ' + err.message });
     }
 };
@@ -126,11 +135,22 @@ exports.deleteTweet = async (req, res) => {
         if (!tweet)                      return res.status(404).json({ error: 'Tweet bulunamadı.' });
         if (tweet.authorId !== deviceId) return res.status(403).json({ error: 'Yetkin yok.' });
 
-        await Promise.all([
-            tweet.imagePath ? deleteFromStorage(tweet.imagePath) : Promise.resolve(),
+        const deletePromises = [
             Tweet.findByIdAndDelete(req.params.tweetId),
             Comment.deleteMany({ tweetId: req.params.tweetId }),
-        ]);
+        ];
+
+        // Tüm medyaları sil
+        if (tweet.media && tweet.media.length > 0) {
+            tweet.media.forEach(m => {
+                if (m.path) deletePromises.push(deleteFromStorage(m.path));
+            });
+        } else if (tweet.imagePath) {
+            // Eski tip tekil görsel
+            deletePromises.push(deleteFromStorage(tweet.imagePath));
+        }
+
+        await Promise.all(deletePromises);
         await User.updateOne({ deviceId, dailyLimit: { $lt: 3 } }, { $inc: { dailyLimit: 1 } });
         res.json({ message: 'Tweet silindi.' });
     } catch (err) {

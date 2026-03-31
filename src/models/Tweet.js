@@ -29,9 +29,14 @@ const tweetSchema = new mongoose.Schema({
     authorAvatar:    { type: String, required: true },
     authorAvatarUrl: { type: String, default: null },
     content:         { type: String, default: '' },
-    imageUrl:        { type: String, default: null },
-    imagePath:       { type: String, default: null },
-    mediaType:       { type: String, enum: ['image', 'video', 'story', null], default: null },
+    imageUrl:        { type: String, default: null }, // İlk görsel (eski uyumluluk için)
+    imagePath:       { type: String, default: null }, // İlk görsel yolu (eski uyumluluk için)
+    media: [{
+        url:  { type: String, required: true },
+        path: { type: String, required: true },
+        type: { type: String, enum: ['image', 'video'], required: true },
+    }],
+    mediaType:       { type: String, enum: ['image', 'video', 'story', 'multi', null], default: null },
     likes:           { type: Number, default: 0 },
     likedBy:         [{ type: String }],
     commentCount:    { type: Number, default: 0 },
