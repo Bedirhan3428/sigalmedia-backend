@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     username:      { type: String, default: 'Anonim' },
     avatar:        { type: String, default: 'Anonim' },
     avatarUrl:     { type: String, default: null },
-    dailyLimit:    { type: Number, default: 3 },
+    dailyLimit:    { type: Number, default: 10 },
     lastResetDate: { type: Date,   default: Date.now },
     followers:     [{ type: String }],
     following:     [{ type: String }],
