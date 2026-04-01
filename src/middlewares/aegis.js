@@ -2,7 +2,7 @@ const groq      = require('../config/groq');
 const { Tweet } = require('../models/Tweet');
 
 const REPORT_THRESHOLD = 5;
-const SENTINEL_MODEL   = 'llama-3.1-8b-instant';
+const SENTINEL_MODEL   = 'llama-3.3-70b-versatile';
 const AUDIT_MODEL      = 'llama-3.3-70b-versatile';
 const VISION_MODEL     = 'llama-3.2-11b-vision-preview';
 
