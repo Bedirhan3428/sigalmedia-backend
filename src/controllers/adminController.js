@@ -5,6 +5,27 @@ const BotExample       = require('../models/BotExample');
 const BotEvent         = require('../models/BotEvent');
 const { modDecision, militaryAudit } = require('../middlewares/aegis');
 
+// ─── GET /api/admin/pending ──────────────────────────────────────────────────
+exports.getPending = async (req, res) => {
+    try {
+        const { page = 1, limit = 20 } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const [tweets, total] = await Promise.all([
+            Tweet.find(
+                { aegisStatus: 'pending' },
+                { likedBy: 0, reportedBy: 0 }
+            ).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+            Tweet.countDocuments({ aegisStatus: 'pending' }),
+        ]);
+
+        res.json({ tweets, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
+    } catch (err) {
+        console.error("admin pending hatası:", err);
+        res.status(500).json({ error: "Sunucu hatası!" });
+    }
+};
+
 // ─── GET /api/admin/quarantine ───────────────────────────────────────────────
 exports.getQuarantine = async (req, res) => {
     try {
@@ -164,10 +185,11 @@ exports.forceAudit = async (req, res) => {
 exports.getStats = async (req, res) => {
     try {
         const [
-            totalTweets, activeTweets, quarantineTweets, suspendedTweets,
+            totalTweets, pendingTweets, activeTweets, quarantineTweets, suspendedTweets,
             removedTweets, clearedTweets, totalUsers, totalComments, totalBots
         ] = await Promise.all([
             Tweet.countDocuments({}),
+            Tweet.countDocuments({ aegisStatus: 'pending' }),
             Tweet.countDocuments({ aegisStatus: 'active' }),
             Tweet.countDocuments({ aegisStatus: 'quarantine' }),
             Tweet.countDocuments({ aegisStatus: 'suspended' }),
@@ -180,7 +202,7 @@ exports.getStats = async (req, res) => {
 
         res.json({
             tweets: {
-                total: totalTweets, active: activeTweets,
+                total: totalTweets, pending: pendingTweets, active: activeTweets,
                 quarantine: quarantineTweets, suspended: suspendedTweets,
                 removed: removedTweets, cleared: clearedTweets
             },

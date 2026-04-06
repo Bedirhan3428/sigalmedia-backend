@@ -114,7 +114,7 @@ function startCronJobs() {
 
             const result = await User.updateMany(
                 { lastResetDate: { $lt: today }, isBot: { $ne: true } },
-                { $set: { dailyLimit: 3, lastResetDate: today } }
+                { $set: { dailyLimit: 10, lastResetDate: today } }
             );
 
             console.log(`✅ Günlük limitler sıfırlandı. (${result.modifiedCount} kullanıcı)`);
@@ -131,7 +131,7 @@ function startCronJobs() {
 
             const result = await User.updateMany(
                 { lastResetDate: { $lt: today }, isBot: { $ne: true } },
-                { $set: { dailyLimit: 3, lastResetDate: today } }
+                { $set: { dailyLimit: 10, lastResetDate: today } }
             );
 
             if (result.modifiedCount > 0) {

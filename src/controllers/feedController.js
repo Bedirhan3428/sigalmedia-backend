@@ -5,10 +5,15 @@ const { User }  = require('../models/User');
 // aegisStatus alanı olmayan ESKİ tweetler ($exists: false) de dahil edilir.
 // Bu olmadan MongoDB yeni şemadan önce eklenen tweetleri göstermez.
 const ACTIVE_FILTER = {
-    $or: [
-        { aegisStatus: { $exists: false } },          // eski tweetler (şema öncesi)
-        { aegisStatus: { $in: ['active', 'cleared'] } }, // yeni tweetler
-    ],
+    $and: [
+        { mediaType: { $ne: 'story' } },
+        {
+            $or: [
+                { aegisStatus: { $exists: false } },          // eski tweetler (şema öncesi)
+                { aegisStatus: { $in: ['active', 'cleared'] } }, // yeni tweetler
+            ]
+        }
+    ]
 };
 
 // GET /api/feed

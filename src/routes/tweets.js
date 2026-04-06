@@ -11,5 +11,6 @@ router.delete('/like/:tweetId',                 tc.unlikeTweet);
 router.post('/report/:tweetId',                 reportLimiter, tc.reportTweet);
 router.get('/my-tweets/:deviceId',              tc.getMyTweets);
 router.get('/posts/:id',                        tc.getPostById); // ← DÜZELTİLDİ
+router.post('/tweet/:tweetId/view',             tc.viewStory);
 
 module.exports = router;

@@ -33,8 +33,21 @@ exports.initUser = async (req, res) => {
 // GET /api/user/:deviceId
 exports.getUser = async (req, res) => {
     try {
-        const user = await User.findOne({ deviceId: req.params.deviceId }).lean();
+        let user = await User.findOne({ deviceId: req.params.deviceId }).lean();
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+
+        // Günlük limit sıfırlama kontrolü
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (user.lastResetDate < today && !user.isBot) {
+            await User.updateOne(
+                { deviceId: user.deviceId },
+                { $set: { dailyLimit: 10, lastResetDate: today } }
+            );
+            user.dailyLimit = 10;
+            user.lastResetDate = today;
+        }
+
         res.json({ user });
     } catch (err) {
         console.error("user get hatası:", err);

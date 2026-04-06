@@ -32,7 +32,7 @@ router.post('/auth/register', async (req, res) => {
           username:      trimName,
           avatar:        trimName,
           avatarUrl:     null,
-          dailyLimit:    3,
+          dailyLimit:    10,
           emailVerified: false,
         }
       },

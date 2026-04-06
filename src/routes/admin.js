@@ -8,6 +8,7 @@ router.use(adminLimiter);
 
 // ─── Moderatör + Super Admin ──────────────────────────────────────────────
 router.get('/admin/stats',                       requireMod, ac.getStats);
+router.get('/admin/pending',                     requireMod, ac.getPending);
 router.get('/admin/quarantine',                  requireMod, ac.getQuarantine);
 router.get('/admin/suspended',                   requireMod, ac.getSuspended);
 router.get('/admin/all-tweets',                  requireMod, ac.getAllTweets);

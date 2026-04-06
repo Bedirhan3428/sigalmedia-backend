@@ -21,6 +21,7 @@ const safetyRoute     = require('./src/routes/safety');
 const authRoutes      = require('./src/routes/auth');       // NEW: Resend
 const userSearchRoutes = require('./src/routes/userSearch'); // NEW: Search
 const exploreRoutes   = require('./src/routes/explore');    // NEW: Explore algo
+const analyticsRoutes = require('./src/routes/analytics');   // NEW: Analytics
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api', commentRoutes);
 app.use('/api', feedRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', safetyRoute);
+app.use('/api', analyticsRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString(), version: '3.0' }));
@@ -70,6 +72,7 @@ async function boot() {
   const { Tweet } = require('./src/models/Tweet');
   const { User }  = require('./src/models/User');
   const Comment   = require('./src/models/Comment');
+  const { ActivityLog } = require('./src/models/ActivityLog');
 
   await Promise.all([
     Tweet.collection.createIndex({ score: -1, createdAt: -1 }),
@@ -84,6 +87,10 @@ async function boot() {
     User.collection.createIndex({ deviceId: 1 }, { unique: true }),
     User.collection.createIndex({ username: 1 }),
     User.collection.createIndex({ username: 'text' }), // NEW: search index
+    ActivityLog.collection.createIndex({ timestamp: 1 }, { expireAfterSeconds: 7776000 }),
+    ActivityLog.collection.createIndex({ userId: 1, timestamp: -1 }),
+    ActivityLog.collection.createIndex({ targetId: 1, action: 1 }),
+    ActivityLog.collection.createIndex({ action: 1, timestamp: -1 }),
   ]);
   console.log("✅ Index'ler hazır.");
 

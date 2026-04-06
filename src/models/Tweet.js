@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // 'suspended'     → Military Audit: UNSAFE kararı — Admin onayı bekleniyor
 // 'cleared'       → Military Audit: SAFE kararı, karantinadan çıkarıldı
 // 'removed'       → Admin tarafından silindi (DB'de tutulur, gizlenir)
-const AEGIS_STATUSES = ['active', 'quarantine', 'suspended', 'cleared', 'removed'];
+const AEGIS_STATUSES = ['pending', 'active', 'quarantine', 'suspended', 'cleared', 'removed'];
 
 // ─── Sosyal Embed Şeması ─────────────────────────────────────────────────────
 const socialEmbedSchema = new mongoose.Schema({
@@ -40,6 +40,8 @@ const tweetSchema = new mongoose.Schema({
     likes:           { type: Number, default: 0 },
     likedBy:         [{ type: String }],
     commentCount:    { type: Number, default: 0 },
+    viewCount:       { type: Number, default: 0 },
+    viewers:         [{ type: String }],
     score:           { type: Number, default: 5 },
     createdAt:       { type: Date,   default: Date.now },
 
